@@ -5,49 +5,76 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserService = void 0;
 const common_1 = require("@nestjs/common");
+const bcrypt = require("bcryptjs");
+const user_entity_1 = require("./entities/user.entity");
+const typeorm_1 = require("typeorm");
+const typeorm_2 = require("@nestjs/typeorm");
+const session_entity_1 = require("../sessions/entities/session.entity");
+const luxon_1 = require("luxon");
 let UserService = class UserService {
-    constructor() {
-        this.user = [];
+    constructor(userRepository, sessionRepository) {
+        this.userRepository = userRepository;
+        this.sessionRepository = sessionRepository;
     }
     async create(createUserDto) {
-        createUserDto.forEach((user) => {
-            const id = (this.user.length + 1).toString();
-            this.user.push({ ...user, id });
-        });
+        try {
+            const salt = await bcrypt.genSalt(10);
+            createUserDto.password = bcrypt.hashSync(createUserDto.password, salt);
+            return await this.userRepository.save(createUserDto);
+        }
+        catch (e) {
+            console.log(e);
+            return null;
+        }
     }
     async findAll() {
-        return this.user;
+        console.log("Trying request users in database");
+        return this.userRepository.find();
     }
-    async findOne(id) {
-        return this.user[id];
+    async findOne(document) {
+        return this.userRepository.findOne({ where: { document: document } });
     }
-    async findOneByDocument(document) {
-        return this.user.find((user) => user.document == document);
-    }
-    async update(id, updateUserDto) {
-        const user = this.user.find((user) => user.id == id);
+    async login(email, password) {
+        const user = await this.userRepository.findOne({ where: { email: email } });
         if (user) {
-            const newUser = { ...user, ...updateUserDto, };
-            this.user[this.user.indexOf(user)] = newUser;
-            return newUser;
+            if (bcrypt.compareSync(password, user?.password)) {
+                return user;
+            }
         }
         return undefined;
     }
-    remove(document) {
-        const user = this.user.find((user) => user.document == document);
+    async setSession(user, expire_at, session_id) {
+        return await this.sessionRepository.save({ session_id: session_id, user_id: user.user_id, expire_at: luxon_1.DateTime.fromSeconds(expire_at).toJSDate() });
+    }
+    async findLastUserSession(user_id) {
+        return (await this.sessionRepository.find({ where: { user_id: user_id } })).pop();
+    }
+    async update(document, updateUserDto) {
+        const user = await this.userRepository.findOne({ where: { document: document } });
         if (user) {
-            const index = this.user.indexOf(user);
-            if (index) {
-                this.user.splice(index, 1);
-            }
+            return await this.userRepository.save({ ...updateUserDto, id: user.user_id });
         }
+        return undefined;
+    }
+    async remove(user) {
+        await this.userRepository.delete(user);
     }
 };
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, typeorm_2.InjectRepository)(user_entity_1.User)),
+    __param(1, (0, typeorm_2.InjectRepository)(session_entity_1.Session)),
+    __metadata("design:paramtypes", [typeorm_1.Repository,
+        typeorm_1.Repository])
 ], UserService);
 //# sourceMappingURL=user.service.js.map

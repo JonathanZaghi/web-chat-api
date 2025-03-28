@@ -1,50 +1,73 @@
 import { Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
-
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { Session } from 'src/sessions/entities/session.entity';
+import { DateTime } from 'luxon';
 @Injectable()
 export class UserService {
-  user = [] as User[];
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Session)
+    private readonly sessionRepository: Repository<Session>,
+  ) { }
 
-  async create(createUserDto: CreateUserDto[]) {
-    createUserDto.forEach((user: CreateUserDto) => {
-      const id = (this.user.length + 1).toString();
-      this.user.push({ ...user, id });
-    });
+  async create(createUserDto: CreateUserDto): Promise<User | null> {
+    try {
+      const salt = await bcrypt.genSalt(10)
+      createUserDto.password = bcrypt.hashSync(createUserDto.password, salt);
+      return await this.userRepository.save(createUserDto);
+    } catch (e) {
+      console.log(e);
+      return null;
+    }
   }
 
   async findAll(): Promise<User[]> {
-    return this.user;
+    console.log("Trying request users in database")
+    return this.userRepository.find();
   }
 
-  async findOne(id: number): Promise<User> {
-    return this.user[id];
+  async findOne(document: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { document: document } });
   }
 
-  async findOneByDocument(document: string): Promise<User | undefined> {
-    return this.user.find((user) => user.document == document);
-  }
+  async login(email: string, password: string): Promise<User | undefined> {
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | undefined> {
-    const user = this.user.find((user) => user.id == id)
+    const user = await this.userRepository.findOne({ where: { email: email } })
+
     if (user) {
-      const newUser: User = { ...user, ...updateUserDto, }
-      this.user[this.user.indexOf(user)] = newUser;
-      return newUser;
+      if (bcrypt.compareSync(password, user?.password)) {
+        return user
+      }
     }
 
     return undefined;
 
   }
 
-  remove(document?: string) {
-    const user = this.user.find((user) => user.document == document)
+  async setSession(user: User, expire_at: number, session_id: string) {
+    return await this.sessionRepository.save({ session_id: session_id, user_id: user.user_id, expire_at: DateTime.fromSeconds(expire_at).toJSDate() })
+  }
+
+  async findLastUserSession(user_id: string): Promise<Session | undefined> {
+    return (await this.sessionRepository.find({ where: { user_id: user_id } })).pop()
+  }
+
+  async update(document: string, updateUserDto: UpdateUserDto): Promise<User | undefined> {
+    const user = await this.userRepository.findOne({ where: { document: document } })
     if (user) {
-      const index: number = this.user.indexOf(user)
-      if (index) {
-        this.user.splice(index, 1);
-      }
+      return await this.userRepository.save({ ...updateUserDto, id: user.user_id })
     }
+    return undefined
+  }
+
+  async remove(user: User): Promise<void> {
+    await this.userRepository.delete(user);
+
   }
 }

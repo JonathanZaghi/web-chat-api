@@ -8,6 +8,7 @@ import {
 } from '@nestjs/websockets';
 import { DateTime } from 'luxon';
 import { Server, Socket } from 'socket.io';
+import { UserService } from 'src/user/user.service';
 
 @WebSocketGateway(81, {
   cors: {
@@ -17,7 +18,9 @@ import { Server, Socket } from 'socket.io';
   },
 })
 export class EventsGateway implements OnModuleInit {
-  private users = [] as string[];
+
+  constructor(private readonly userService: UserService) { }
+
   @WebSocketServer()
   server: Server;
 
@@ -25,11 +28,37 @@ export class EventsGateway implements OnModuleInit {
   onModuleInit() {
     this.server.on('connection', (socket) => {
       socket.emit('welcome', { id: socket.id })
+
+    })
+
+    this.server.on('disconnect', (socket) => {
+
+    })
+
+    this.server.use((socket, next) => {
+      const userId = socket.handshake.auth.userId;
+      const sessionId = socket.handshake.auth.sessionId;
+      if (!userId || !sessionId) {
+        return next(new Error("Invalid Client."))
+      }
+      socket.data.userId = userId;
+      socket.data.sessionId = sessionId;
+      socket.join(userId)
+      next()
     })
   }
+
+
+
+
   @SubscribeMessage('events')
   handleEvent(@MessageBody() data: string) {
     this.server.emit('onEvents')
+  }
+
+  @SubscribeMessage('change_user_status')
+  changeUserStatus(@MessageBody() data: string) {
+    this.server.emit('change_user_status',)
   }
 
   @SubscribeMessage('joinGroup')
@@ -57,16 +86,13 @@ export class EventsGateway implements OnModuleInit {
     return data;
   }
 
-  @SubscribeMessage('friends')
-  onFriendSMessage() {
-    this.server.emit('onFriendSMessage', this.users)
-  }
-
   @SubscribeMessage('sendMessage')
-  async sendMessage(@MessageBody() message: { destiny: string, text: string, senderId: string }, @ConnectedSocket() client: Socket): Promise<void> {
+  async sendMessage(@MessageBody() message: { destiny: string, text: string }, @ConnectedSocket() client: Socket): Promise<void> {
     try {
-      console.log("sending msg to", message.destiny)
-      this.server.to(message.destiny).emit('receiveMessage', { message: message.text, userId: client.id, createdAt: DateTime.now() },)
+      console.log("sending msg to", message.
+        text
+      )
+      this.server.to(client.data.userId).to(message.destiny).emit('receiveMessage', { message: message.text, userId: client.id, createdAt: DateTime.now() },)
     } catch (e) {
       console.log("erro ao sendMessage", e)
     }

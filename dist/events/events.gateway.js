@@ -16,17 +16,34 @@ exports.EventsGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
 const luxon_1 = require("luxon");
 const socket_io_1 = require("socket.io");
+const user_service_1 = require("../user/user.service");
 let EventsGateway = class EventsGateway {
-    constructor() {
-        this.users = [];
+    constructor(userService) {
+        this.userService = userService;
     }
     onModuleInit() {
         this.server.on('connection', (socket) => {
             socket.emit('welcome', { id: socket.id });
         });
+        this.server.on('disconnect', (socket) => {
+        });
+        this.server.use((socket, next) => {
+            const userId = socket.handshake.auth.userId;
+            const sessionId = socket.handshake.auth.sessionId;
+            if (!userId || !sessionId) {
+                return next(new Error("Invalid Client."));
+            }
+            socket.data.userId = userId;
+            socket.data.sessionId = sessionId;
+            socket.join(userId);
+            next();
+        });
     }
     handleEvent(data) {
         this.server.emit('onEvents');
+    }
+    changeUserStatus(data) {
+        this.server.emit('change_user_status');
     }
     joinGroup(payLoad, client) {
         try {
@@ -48,13 +65,11 @@ let EventsGateway = class EventsGateway {
     async identity(data) {
         return data;
     }
-    onFriendSMessage() {
-        this.server.emit('onFriendSMessage', this.users);
-    }
     async sendMessage(message, client) {
         try {
-            console.log("sending msg to", message.destiny);
-            this.server.to(message.destiny).emit('receiveMessage', { message: message.text, userId: client.id, createdAt: luxon_1.DateTime.now() });
+            console.log("sending msg to", message.
+                text);
+            this.server.to(client.data.userId).to(message.destiny).emit('receiveMessage', { message: message.text, userId: client.id, createdAt: luxon_1.DateTime.now() });
         }
         catch (e) {
             console.log("erro ao sendMessage", e);
@@ -73,6 +88,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], EventsGateway.prototype, "handleEvent", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('change_user_status'),
+    __param(0, (0, websockets_1.MessageBody)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], EventsGateway.prototype, "changeUserStatus", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('joinGroup'),
     __param(0, (0, websockets_1.MessageBody)()),
@@ -97,12 +119,6 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], EventsGateway.prototype, "identity", null);
 __decorate([
-    (0, websockets_1.SubscribeMessage)('friends'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], EventsGateway.prototype, "onFriendSMessage", null);
-__decorate([
     (0, websockets_1.SubscribeMessage)('sendMessage'),
     __param(0, (0, websockets_1.MessageBody)()),
     __param(1, (0, websockets_1.ConnectedSocket)()),
@@ -117,6 +133,7 @@ exports.EventsGateway = EventsGateway = __decorate([
             methods: '*',
             allowedHeaders: '*',
         },
-    })
+    }),
+    __metadata("design:paramtypes", [user_service_1.UserService])
 ], EventsGateway);
 //# sourceMappingURL=events.gateway.js.map

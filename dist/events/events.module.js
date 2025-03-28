@@ -9,11 +9,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EventsModule = void 0;
 const common_1 = require("@nestjs/common");
 const events_gateway_1 = require("./events.gateway");
+const user_module_1 = require("../user/user.module");
 let EventsModule = class EventsModule {
 };
 exports.EventsModule = EventsModule;
 exports.EventsModule = EventsModule = __decorate([
     (0, common_1.Module)({
+        imports: [user_module_1.UserModule],
         providers: [events_gateway_1.EventsGateway]
     })
 ], EventsModule);

@@ -13,6 +13,8 @@ const logger_middleware_1 = require("./logger.middleware");
 const user_module_1 = require("./user/user.module");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const typeorm_1 = require("@nestjs/typeorm");
+const groups_module_1 = require("./groups/groups.module");
 let AppModule = class AppModule {
     configure(consumer) {
         consumer
@@ -23,7 +25,16 @@ let AppModule = class AppModule {
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [events_module_1.EventsModule, user_module_1.UserModule],
+        imports: [typeorm_1.TypeOrmModule.forRoot({
+                type: 'postgres',
+                host: '192.168.15.7',
+                port: 5432,
+                username: 'postgres',
+                password: 'Arkanes@MI99',
+                database: 'postgres',
+                autoLoadEntities: true,
+                synchronize: false,
+            }), events_module_1.EventsModule, user_module_1.UserModule, groups_module_1.GroupsModule],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService]
     })
